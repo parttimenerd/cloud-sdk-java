@@ -229,7 +229,6 @@
 					<execution>
 						<goals>
 							<goal>prepare</goal>
-							<goal>store</goal>
 						</goals>
 					</execution>
 				</executions>
