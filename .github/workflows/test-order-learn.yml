@@ -1,47 +1,31 @@
-name: "test-order: Learn Pass"
-
-# Runs the test-order learn pass for the connectivity-destination-service module
-# and uploads the resulting index as a workflow artifact so developers can
-# download it with: mvn test-order:download
-#
-# NOTE: Demo fork for SAP DCOM 2026 "You Are Running the Wrong Tests First".
+name: Learn Pass
 
 on:
   push:
-    branches: [ "main" ]
     paths:
-      - "cloudplatform/connectivity-destination-service/src/**"
+      - 'cloudplatform/connectivity-destination-service/src/**'
+      - '.github/workflows/test-order-learn.yml'
   workflow_dispatch:
   schedule:
-    - cron: "0 3 * * 1"   # weekly Monday 3am — keep index fresh
-
-env:
-  MODULE: cloudplatform/connectivity-destination-service
-  PLUGIN_VERSION: 0.0.1-SNAPSHOT
-  MVN_ARGS: --batch-mode --no-transfer-progress -DskipFormatting -Denforcer.skip
-
-permissions:
-  contents: read
-  actions: write
+    - cron: '0 3 * * 0'
 
 jobs:
   learn:
-    name: "Learn Pass"
+    name: Learn Pass
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-java@v4
         with:
-          java-version: "21"
-          distribution: sapmachine
+          java-version: '17'
+          distribution: 'temurin'
           cache: maven
 
       - name: Add OSSRH snapshot repository
         run: |
           mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml << 'XML'
+          cat > ~/.m2/settings.xml << 'EOF'
           <settings>
             <profiles>
               <profile>
@@ -68,58 +52,28 @@ jobs:
               <activeProfile>ossrh-snapshots</activeProfile>
             </activeProfiles>
           </settings>
-          XML
+          EOF
 
       - name: Build module (skip tests)
-        run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
-
-      - name: Enable test-order plugin in pom.xml
-        run: |
-          perl -i -pe '
-            if (/^\s+<plugins>\s*$/ && !$done) {
-              $_ .= "                <!-- test-order-plugin-start -->
-"
-                   . "                <plugin>
-"
-                   . "                        <groupId>me.bechberger</groupId>
-"
-                   . "                        <artifactId>test-order-maven-plugin</artifactId>
-"
-                   . "                        <version>'"$PLUGIN_VERSION"'</version>
-"
-                   . "                        <executions>
-"
-                   . "                                <execution>
-"
-                   . "                                        <goals><goal>prepare</goal></goals>
-"
-                   . "                                </execution>
-"
-                   . "                        </executions>
-"
-                   . "                </plugin>
-"
-                   . "                <!-- test-order-plugin-end -->
-";
-              $done = 1;
-            }
-          ' $MODULE/pom.xml
+        run: mvn install -DskipTests -pl cloudplatform/connectivity-destination-service -am -q
 
       - name: Run learn pass
         run: |
-          mvn $MVN_ARGS test -pl $MODULE \
+          mvn test \
+            -pl cloudplatform/connectivity-destination-service \
             -Dtestorder.mode=learn \
-            -DforkCount=1 -DreuseForks=true \
-            -Dmaven.test.failure.ignore=true
+            -DforkCount=1 \
+            -DreuseForks=true \
+            -Dmaven.test.failure.ignore=true \
+            -q
 
       - name: Aggregate learn data
-        run: mvn $MVN_ARGS test-order:aggregate -pl $MODULE
+        run: mvn test-order:aggregate -pl cloudplatform/connectivity-destination-service -q
 
       - name: Upload learn index
         uses: actions/upload-artifact@v4
         with:
           name: test-order-deps
           path: .test-order/
-          retention-days: 90
-          if-no-files-found: error
           include-hidden-files: true
+          retention-days: 90
