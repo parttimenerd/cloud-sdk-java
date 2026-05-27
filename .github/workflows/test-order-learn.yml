@@ -57,31 +57,63 @@ jobs:
       - name: Build module (skip tests)
         run: mvn install -DskipTests -pl cloudplatform/connectivity-destination-service -am -q
 
-      - name: Run learn pass + aggregate (single invocation persists merged index)
+      - name: Run learn pass (writes fallback)
         run: |
-          mvn test-order:learn test test-order:aggregate \
+          mvn test \
             -pl cloudplatform/connectivity-destination-service \
+            -Dtestorder.mode=learn \
             -Dmaven.test.failure.ignore=true \
-            -q
+            -q || true
 
-      - name: Verify index is populated
+      - name: Aggregate (merges fallback into index)
+        run: mvn test-order:aggregate -pl cloudplatform/connectivity-destination-service -q || true
+
+      - name: Locate and stage learn index
         run: |
-          INDEX=cloudplatform/connectivity-destination-service/.test-order/test-dependencies.lz4
-          if [[ ! -f "$INDEX" ]]; then
-            echo "::error::Index file not found at $INDEX"
+          set -e
+          ROOT_DIR=.test-order
+          MODULE_DIR=cloudplatform/connectivity-destination-service/.test-order
+          STAGE=staged-test-order
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+
+          # Copy whichever .test-order dir has data (root if both exist, then module)
+          if [[ -d "$ROOT_DIR" ]]; then
+            echo "Found root .test-order:"
+            ls -la "$ROOT_DIR"
+            cp -r "$ROOT_DIR"/. "$STAGE"/ 2>/dev/null || true
+          fi
+          if [[ -d "$MODULE_DIR" ]]; then
+            echo "Found module .test-order:"
+            ls -la "$MODULE_DIR"
+            cp -rn "$MODULE_DIR"/. "$STAGE"/ 2>/dev/null || true
+          fi
+
+          # If we have a fallback file but no merged index yet, run aggregate from
+          # whichever directory has the fallback so it gets merged.
+          if ls "$STAGE"/*.collector-fallback 2>/dev/null; then
+            echo "Fallback file present — running aggregate from staged dir"
+            mkdir -p "$MODULE_DIR"
+            cp -f "$STAGE"/*.collector-fallback "$MODULE_DIR"/ 2>/dev/null || true
+            mvn test-order:aggregate -pl cloudplatform/connectivity-destination-service -q || true
+            cp -f "$MODULE_DIR"/test-dependencies.lz4 "$STAGE"/ 2>/dev/null || true
+            rm -f "$STAGE"/*.collector-fallback
+          fi
+
+          echo ""
+          echo "Final staged contents:"
+          ls -la "$STAGE"
+          if [[ ! -f "$STAGE/test-dependencies.lz4" ]]; then
+            echo "::error::No test-dependencies.lz4 produced"
             exit 1
           fi
-          SIZE=$(stat -c%s "$INDEX")
+          SIZE=$(stat -c%s "$STAGE/test-dependencies.lz4")
           echo "Index size: $SIZE bytes"
-          if [[ "$SIZE" -lt 5000 ]]; then
-            echo "::warning::Index is unexpectedly small ($SIZE bytes) — fallback may not have been merged"
-            ls -la cloudplatform/connectivity-destination-service/.test-order/
-          fi
 
       - name: Upload learn index
         uses: actions/upload-artifact@v4
         with:
           name: test-order-deps
-          path: cloudplatform/connectivity-destination-service/.test-order/
+          path: staged-test-order/
           include-hidden-files: true
           retention-days: 90
