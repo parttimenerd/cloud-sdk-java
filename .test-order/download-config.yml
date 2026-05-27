@@ -1,0 +1,6 @@
+ci:
+  github:
+    owner: parttimenerd
+    repo: cloud-sdk-java
+    workflow: test-order-learn.yml
+    artifact-name: test-order-deps
