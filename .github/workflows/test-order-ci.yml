@@ -18,6 +18,7 @@ on:
 
 env:
   MODULE: cloudplatform/connectivity-destination-service
+  PLUGIN_VERSION: 0.0.1-SNAPSHOT
   MVN_ARGS: --batch-mode --no-transfer-progress -DskipFormatting -Denforcer.skip
 
 permissions:
@@ -40,14 +41,57 @@ jobs:
           distribution: sapmachine
           cache: maven
 
-      - name: Check out test-order plugin source
-        uses: actions/checkout@v4
-        with:
-          repository: parttimenerd/test-order
-          path: _test-order-plugin
+      - name: Add OSSRH snapshot repository
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'XML'
+          <settings>
+            <profiles>
+              <profile>
+                <id>ossrh-snapshots</id>
+                <repositories>
+                  <repository>
+                    <id>ossrh-snapshots</id>
+                    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                    <snapshots><enabled>true</enabled></snapshots>
+                    <releases><enabled>false</enabled></releases>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>ossrh-snapshots</id>
+                    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                    <snapshots><enabled>true</enabled></snapshots>
+                    <releases><enabled>false</enabled></releases>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>ossrh-snapshots</activeProfile>
+            </activeProfiles>
+          </settings>
+          XML
 
-      - name: Build and install test-order plugin
-        run: mvn $MVN_ARGS -f _test-order-plugin/pom.xml install -DskipTests -pl test-order-maven-plugin -am -q
+      - name: Enable test-order plugin in pom.xml
+        run: |
+          perl -i -pe '
+            if (/^\s+<plugins>\s*$/ && !$done) {
+              $_ .= "                <!-- test-order-plugin-start -->\n"
+                   . "                <plugin>\n"
+                   . "                        <groupId>me.bechberger</groupId>\n"
+                   . "                        <artifactId>test-order-maven-plugin</artifactId>\n"
+                   . "                        <version>'"$PLUGIN_VERSION"'</version>\n"
+                   . "                        <executions>\n"
+                   . "                                <execution>\n"
+                   . "                                        <goals><goal>prepare</goal></goals>\n"
+                   . "                                </execution>\n"
+                   . "                        </executions>\n"
+                   . "                </plugin>\n"
+                   . "                <!-- test-order-plugin-end -->\n";
+              $done = 1;
+            }
+          ' $MODULE/pom.xml
 
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
@@ -85,14 +129,57 @@ jobs:
           distribution: sapmachine
           cache: maven
 
-      - name: Check out test-order plugin source
-        uses: actions/checkout@v4
-        with:
-          repository: parttimenerd/test-order
-          path: _test-order-plugin
+      - name: Add OSSRH snapshot repository
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'XML'
+          <settings>
+            <profiles>
+              <profile>
+                <id>ossrh-snapshots</id>
+                <repositories>
+                  <repository>
+                    <id>ossrh-snapshots</id>
+                    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                    <snapshots><enabled>true</enabled></snapshots>
+                    <releases><enabled>false</enabled></releases>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>ossrh-snapshots</id>
+                    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                    <snapshots><enabled>true</enabled></snapshots>
+                    <releases><enabled>false</enabled></releases>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>ossrh-snapshots</activeProfile>
+            </activeProfiles>
+          </settings>
+          XML
 
-      - name: Build and install test-order plugin
-        run: mvn $MVN_ARGS -f _test-order-plugin/pom.xml install -DskipTests -pl test-order-maven-plugin -am -q
+      - name: Enable test-order plugin in pom.xml
+        run: |
+          perl -i -pe '
+            if (/^\s+<plugins>\s*$/ && !$done) {
+              $_ .= "                <!-- test-order-plugin-start -->\n"
+                   . "                <plugin>\n"
+                   . "                        <groupId>me.bechberger</groupId>\n"
+                   . "                        <artifactId>test-order-maven-plugin</artifactId>\n"
+                   . "                        <version>'"$PLUGIN_VERSION"'</version>\n"
+                   . "                        <executions>\n"
+                   . "                                <execution>\n"
+                   . "                                        <goals><goal>prepare</goal></goals>\n"
+                   . "                                </execution>\n"
+                   . "                        </executions>\n"
+                   . "                </plugin>\n"
+                   . "                <!-- test-order-plugin-end -->\n";
+              $done = 1;
+            }
+          ' $MODULE/pom.xml
 
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
