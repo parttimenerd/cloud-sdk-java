@@ -1,4 +1,8 @@
-![build](https://github.com/SAP/cloud-sdk-java/actions/workflows/continuous-integration.yaml/badge.svg?branch=main)
+> **⚠️ Demo fork** — This repository is a fork of [SAP/cloud-sdk-java](https://github.com/SAP/cloud-sdk-java)
+> used for the SAP DCOM 2026 talk *"You Are Running the Wrong Tests First"* by Johannes Bechberger.
+> It adds CI workflows that run the [test-order](https://github.com/parttimenerd/test-order) learn pass
+> and demonstrate three-tier test ordering. See the talk's demo scripts at
+> [parttimenerd/test-order](https://github.com/parttimenerd/test-order/tree/main/demo/dcom-presentation).![build](https://github.com/SAP/cloud-sdk-java/actions/workflows/continuous-integration.yaml/badge.svg?branch=main)
 [![REUSE status](https://api.reuse.software/badge/github.com/SAP/cloud-sdk-java)](https://api.reuse.software/info/github.com/SAP/cloud-sdk-java)
 [![Fosstars security rating](https://github.com/SAP/cloud-sdk-java/blob/fosstars-report/fosstars_badge.svg)](https://github.com/SAP/cloud-sdk-java/blob/fosstars-report/fosstars_report.md)
 [![Maven Central](https://img.shields.io/badge/maven_central-5.30.0-blue.svg)](https://search.maven.org/search?q=g:com.sap.cloud.sdk%20AND%20a:sdk-core%20AND%20v:5.30.0)
