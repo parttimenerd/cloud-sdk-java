@@ -62,8 +62,6 @@ jobs:
           mvn test \
             -pl cloudplatform/connectivity-destination-service \
             -Dtestorder.mode=learn \
-            -DforkCount=1 \
-            -DreuseForks=true \
             -Dmaven.test.failure.ignore=true \
             -q
 
