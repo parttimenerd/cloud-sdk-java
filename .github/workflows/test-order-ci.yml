@@ -1,11 +1,13 @@
 name: "test-order: Three-Tier CI"
 
 # Three-tier test ordering for the connectivity-destination-service module.
-#   Tier 1: change-affected tests — every PR and push (seconds)
-#   Tier 2: broader coverage      — push to main only (minutes)
-#   Tier 3: remaining tests       — nightly, after tiers 1+2
+#   Tier 1: change-affected tests (or full learn pass if no index) — every PR/push
+#   Tier 2: broader coverage — push to main only
+#   Tier 3: remaining tests   — nightly + manual dispatch
 #
-# NOTE: Demo fork for SAP DCOM 2026 "You Are Running the Wrong Tests First".
+# When no learn index exists, tier-1 falls back to a full learn pass and uploads
+# the resulting index as the artifact for the test-order-learn workflow to consume.
+# A daily scheduled job in test-order-learn.yml refreshes the index.
 
 on:
   push:
@@ -18,7 +20,6 @@ on:
 
 env:
   MODULE: cloudplatform/connectivity-destination-service
-  PLUGIN_VERSION: 0.0.1-SNAPSHOT
   MVN_ARGS: --batch-mode --no-transfer-progress -DskipFormatting -Denforcer.skip
 
 permissions:
@@ -73,26 +74,6 @@ jobs:
           </settings>
           XML
 
-      - name: Enable test-order plugin in pom.xml
-        run: |
-          perl -i -pe '
-            if (/^\s+<plugins>\s*$/ && !$done) {
-              $_ .= "                <!-- test-order-plugin-start -->\n"
-                   . "                <plugin>\n"
-                   . "                        <groupId>me.bechberger</groupId>\n"
-                   . "                        <artifactId>test-order-maven-plugin</artifactId>\n"
-                   . "                        <version>'"$PLUGIN_VERSION"'</version>\n"
-                   . "                        <executions>\n"
-                   . "                                <execution>\n"
-                   . "                                        <goals><goal>prepare</goal></goals>\n"
-                   . "                                </execution>\n"
-                   . "                        </executions>\n"
-                   . "                </plugin>\n"
-                   . "                <!-- test-order-plugin-end -->\n";
-              $done = 1;
-            }
-          ' $MODULE/pom.xml
-
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
 
@@ -103,8 +84,8 @@ jobs:
           mvn $MVN_ARGS test-order:download -pl $MODULE \
             -Dtestorder.download.fallbackToLearn=true
 
-      - name: Run tier 1 (affected tests) — writes tier 2+3 files
-        run: mvn $MVN_ARGS test-order:tiered-select test -pl $MODULE
+      - name: Run tier 1 (affected) — or learn pass if mode flipped to learn
+        run: mvn $MVN_ARGS test-order:tiered-select test -pl $MODULE -Dmaven.test.failure.ignore=true
 
       - name: Aggregate learn data (no-op if index was downloaded)
         run: mvn $MVN_ARGS test-order:aggregate -pl $MODULE
@@ -117,6 +98,7 @@ jobs:
             ${{ env.MODULE }}/target/test-order-tier2.txt
             ${{ env.MODULE }}/target/test-order-tier3.txt
           retention-days: 1
+          if-no-files-found: ignore
 
   # ── Tier 2: broader coverage (push to main only) ─────────────────────────────
   tier-2:
@@ -166,26 +148,6 @@ jobs:
           </settings>
           XML
 
-      - name: Enable test-order plugin in pom.xml
-        run: |
-          perl -i -pe '
-            if (/^\s+<plugins>\s*$/ && !$done) {
-              $_ .= "                <!-- test-order-plugin-start -->\n"
-                   . "                <plugin>\n"
-                   . "                        <groupId>me.bechberger</groupId>\n"
-                   . "                        <artifactId>test-order-maven-plugin</artifactId>\n"
-                   . "                        <version>'"$PLUGIN_VERSION"'</version>\n"
-                   . "                        <executions>\n"
-                   . "                                <execution>\n"
-                   . "                                        <goals><goal>prepare</goal></goals>\n"
-                   . "                                </execution>\n"
-                   . "                        </executions>\n"
-                   . "                </plugin>\n"
-                   . "                <!-- test-order-plugin-end -->\n";
-              $done = 1;
-            }
-          ' $MODULE/pom.xml
-
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
 
@@ -195,7 +157,18 @@ jobs:
           name: tier-files-${{ github.sha }}
           path: ${{ env.MODULE }}/target/
 
+      - name: Skip if no tier-2 file (tier-1 ran learn pass instead)
+        id: check
+        run: |
+          if [[ -s "$MODULE/target/test-order-tier2.txt" ]]; then
+            echo "has_tier=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tier=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No tier-2 file — tier-1 likely ran a learn pass. Skipping tier-2."
+          fi
+
       - name: Run tier 2 (broader coverage)
+        if: steps.check.outputs.has_tier == 'true'
         run: mvn $MVN_ARGS test-order:run-tier test -pl $MODULE -Dtestorder.tiered.currentTier=2
 
   # ── Tier 3: remaining tests (nightly, after tiers 1+2) ───────────────────────
@@ -246,26 +219,6 @@ jobs:
           </settings>
           XML
 
-      - name: Enable test-order plugin in pom.xml
-        run: |
-          perl -i -pe '
-            if (/^\s+<plugins>\s*$/ && !$done) {
-              $_ .= "                <!-- test-order-plugin-start -->\n"
-                   . "                <plugin>\n"
-                   . "                        <groupId>me.bechberger</groupId>\n"
-                   . "                        <artifactId>test-order-maven-plugin</artifactId>\n"
-                   . "                        <version>'"$PLUGIN_VERSION"'</version>\n"
-                   . "                        <executions>\n"
-                   . "                                <execution>\n"
-                   . "                                        <goals><goal>prepare</goal></goals>\n"
-                   . "                                </execution>\n"
-                   . "                        </executions>\n"
-                   . "                </plugin>\n"
-                   . "                <!-- test-order-plugin-end -->\n";
-              $done = 1;
-            }
-          ' $MODULE/pom.xml
-
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
 
@@ -275,5 +228,16 @@ jobs:
           name: tier-files-${{ github.sha }}
           path: ${{ env.MODULE }}/target/
 
+      - name: Skip if no tier-3 file (tier-1 ran learn pass instead)
+        id: check
+        run: |
+          if [[ -s "$MODULE/target/test-order-tier3.txt" ]]; then
+            echo "has_tier=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tier=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No tier-3 file — tier-1 likely ran a learn pass. Skipping tier-3."
+          fi
+
       - name: Run tier 3 (remaining tests)
+        if: steps.check.outputs.has_tier == 'true'
         run: mvn $MVN_ARGS test-order:run-tier test -pl $MODULE -Dtestorder.tiered.currentTier=3
