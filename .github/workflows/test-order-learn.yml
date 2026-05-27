@@ -19,6 +19,7 @@ env:
   MODULE: cloudplatform/connectivity-destination-service
   PLUGIN_VERSION: 0.0.1-SNAPSHOT
   MVN_ARGS: --batch-mode --no-transfer-progress -DskipFormatting -Denforcer.skip
+  OSSRH: https://central.sonatype.com/repository/maven-snapshots/
 
 permissions:
   contents: read
@@ -69,6 +70,14 @@ jobs:
             </activeProfiles>
           </settings>
           XML
+
+      - name: Pre-fetch test-order runtime jars into local Maven cache
+        run: |
+          for ARTIFACT in test-order-junit test-order-agent test-order-core; do
+            mvn $MVN_ARGS dependency:get \
+              -Dartifact=me.bechberger:${ARTIFACT}:${PLUGIN_VERSION} \
+              -DremoteRepositories=ossrh-snapshots::default::${OSSRH}
+          done
 
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
