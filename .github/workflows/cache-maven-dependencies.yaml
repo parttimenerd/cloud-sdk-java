@@ -1,47 +1,9 @@
-name: "Cache Maven Dependencies"
-
+name: "cache-maven-dependencies (disabled in demo fork)"
+# Disabled in demo fork — requires SAP-internal secrets/infra.
 on:
   workflow_dispatch:
-  schedule:
-      - cron: '57 4 * * Sun'
-
-env:
-  MAVEN_CACHE_REF: refs/heads/main
-  MAVEN_CACHE_KEY: maven-dependencies
-  MAVEN_CACHE_DIR: ~/.m2
-
 jobs:
-  update-cache:
+  disabled:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write # needed to delete caches
     steps:
-      - name: "Checkout"
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ env.MAVEN_CACHE_REF }}
-
-      - name: "Setup Java"
-        uses: actions/setup-java@v5
-        with:
-          distribution: "sapmachine"
-          java-version: 17
-
-      - name: "Download Dependencies"
-        run: mvn -B dependency:go-offline
-
-      - name: "Delete Existing Caches"
-        run: |
-          CACHE_IDS=$(gh cache list --key "${{ env.MAVEN_CACHE_KEY }}" --ref "${{ env.MAVEN_CACHE_REF }}" --json id | jq -r '.[] | .id')
-          for CACHE_ID in $CACHE_IDS; do
-              echo "Deleting cache with ID: $CACHE_ID"
-              gh cache delete "${CACHE_ID}"
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "Cache Dependencies"
-        uses: actions/cache/save@v5
-        with:
-          path: ${{ env.MAVEN_CACHE_DIR }}
-          key: ${{ env.MAVEN_CACHE_KEY }}
+      - run: echo "Disabled in demo fork."
