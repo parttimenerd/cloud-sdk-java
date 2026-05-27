@@ -1,18 +1,9 @@
-name: "Fosstars (Security)"
+name: "fosstars-report (disabled in demo fork)"
+# Disabled in demo fork — requires SAP-internal secrets/infra.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * *"
-
 jobs:
-  create_fosstars_report:
+  disabled:
     runs-on: ubuntu-latest
-    name: "Security rating"
-    permissions:
-      contents: write # needed to push to branch
     steps:
-      - uses: actions/checkout@v6
-      - uses: SAP/fosstars-rating-core-action@v1.14.0
-        with:
-          report-branch: fosstars-report
-          token: "${{ secrets.GITHUB_TOKEN }}"
+      - run: echo "Disabled in demo fork."
