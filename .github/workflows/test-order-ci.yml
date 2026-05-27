@@ -1,0 +1,144 @@
+name: "test-order: Three-Tier CI"
+
+# Demonstrates three-tier test ordering with the test-order plugin.
+# Tier 1: affected tests only  — seconds
+# Tier 2: broader coverage     — minutes
+# Tier 3: full suite           — nightly
+#
+# NOTE: This repository is a demo fork used for the SAP DCOM 2026 talk
+# "You Are Running the Wrong Tests First". See README for details.
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: "30 2 * * *"   # nightly for tier 3
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Which tier to run (1, 2, 3, or all)"
+        required: false
+        default: "1"
+
+env:
+  MODULE: cloudplatform/connectivity-destination-service
+  PLUGIN_VERSION: 0.0.1-SNAPSHOT
+  MVN_ARGS: --batch-mode --no-transfer-progress -DskipFormatting -Denforcer.skip
+
+permissions:
+  contents: read
+
+jobs:
+
+  # ── Shared setup ────────────────────────────────────────────────────────────
+  build:
+    name: "Build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: sapmachine
+          cache: maven
+
+      - name: Build module (skip tests)
+        run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
+
+      - name: Cache build outputs
+        uses: actions/cache/save@v4
+        with:
+          path: ./**/target/**
+          key: build-${{ github.sha }}
+
+  # ── Tier 1: affected tests (seconds) ────────────────────────────────────────
+  tier-1:
+    name: "Tier 1 — Affected Tests"
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: sapmachine
+          cache: maven
+
+      - name: Restore build outputs
+        uses: actions/cache/restore@v4
+        with:
+          path: ./**/target/**
+          key: build-${{ github.sha }}
+
+      - name: Download learn index
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn $MVN_ARGS test-order:download -pl $MODULE
+
+      - name: Run tier 1 (affected tests)
+        run: |
+          mvn $MVN_ARGS test-order:tiered-select test -pl $MODULE \
+            -Dtestorder.tiered.tier1Only=true
+
+  # ── Tier 2: broader coverage (minutes) ──────────────────────────────────────
+  tier-2:
+    name: "Tier 2 — Broader Coverage"
+    needs: tier-1
+    if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: sapmachine
+          cache: maven
+
+      - name: Restore build outputs
+        uses: actions/cache/restore@v4
+        with:
+          path: ./**/target/**
+          key: build-${{ github.sha }}
+
+      - name: Download learn index
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn $MVN_ARGS test-order:download -pl $MODULE
+
+      - name: Run tier 2 (broader coverage)
+        run: |
+          mvn $MVN_ARGS test-order:tiered-select test -pl $MODULE \
+            -Dtestorder.tiered.currentTier=2
+
+  # ── Tier 3: full suite (nightly) ────────────────────────────────────────────
+  tier-3:
+    name: "Tier 3 — Full Suite"
+    needs: tier-2
+    if: >
+      success() &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.tier == '3') ||
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.tier == 'all'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: sapmachine
+          cache: maven
+
+      - name: Restore build outputs
+        uses: actions/cache/restore@v4
+        with:
+          path: ./**/target/**
+          key: build-${{ github.sha }}
+
+      - name: Run full suite (tier 3)
+        run: mvn $MVN_ARGS test -pl $MODULE
