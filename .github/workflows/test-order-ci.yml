@@ -3,7 +3,7 @@ name: "test-order: Three-Tier CI"
 # Three-tier test ordering for the connectivity-destination-service module.
 #   Tier 1: change-affected tests — every PR and push (seconds)
 #   Tier 2: broader coverage      — push to main only (minutes)
-#   Tier 3: full suite            — nightly (comprehensive)
+#   Tier 3: remaining tests       — nightly, after tiers 1+2
 #
 # NOTE: Demo fork for SAP DCOM 2026 "You Are Running the Wrong Tests First".
 
@@ -198,10 +198,11 @@ jobs:
       - name: Run tier 2 (broader coverage)
         run: mvn $MVN_ARGS test-order:run-tier test -pl $MODULE -Dtestorder.tiered.currentTier=2
 
-  # ── Tier 3: full suite (nightly) ─────────────────────────────────────────────
+  # ── Tier 3: remaining tests (nightly, after tiers 1+2) ───────────────────────
   tier-3:
-    name: "Tier 3 — Full Suite"
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    name: "Tier 3 — Remaining Tests"
+    needs: tier-2
+    if: success() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
 
     steps:
@@ -213,8 +214,66 @@ jobs:
           distribution: sapmachine
           cache: maven
 
+      - name: Add OSSRH snapshot repository
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'XML'
+          <settings>
+            <profiles>
+              <profile>
+                <id>ossrh-snapshots</id>
+                <repositories>
+                  <repository>
+                    <id>ossrh-snapshots</id>
+                    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                    <snapshots><enabled>true</enabled></snapshots>
+                    <releases><enabled>false</enabled></releases>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>ossrh-snapshots</id>
+                    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                    <snapshots><enabled>true</enabled></snapshots>
+                    <releases><enabled>false</enabled></releases>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>ossrh-snapshots</activeProfile>
+            </activeProfiles>
+          </settings>
+          XML
+
+      - name: Enable test-order plugin in pom.xml
+        run: |
+          perl -i -pe '
+            if (/^\s+<plugins>\s*$/ && !$done) {
+              $_ .= "                <!-- test-order-plugin-start -->\n"
+                   . "                <plugin>\n"
+                   . "                        <groupId>me.bechberger</groupId>\n"
+                   . "                        <artifactId>test-order-maven-plugin</artifactId>\n"
+                   . "                        <version>'"$PLUGIN_VERSION"'</version>\n"
+                   . "                        <executions>\n"
+                   . "                                <execution>\n"
+                   . "                                        <goals><goal>prepare</goal></goals>\n"
+                   . "                                </execution>\n"
+                   . "                        </executions>\n"
+                   . "                </plugin>\n"
+                   . "                <!-- test-order-plugin-end -->\n";
+              $done = 1;
+            }
+          ' $MODULE/pom.xml
+
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
 
-      - name: Run full test suite
-        run: mvn $MVN_ARGS test -pl $MODULE
+      - name: Download tier files from tier 1
+        uses: actions/download-artifact@v4
+        with:
+          name: tier-files-${{ github.sha }}
+          path: ${{ env.MODULE }}/target/
+
+      - name: Run tier 3 (remaining tests)
+        run: mvn $MVN_ARGS test-order:run-tier test -pl $MODULE -Dtestorder.tiered.currentTier=3
