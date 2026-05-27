@@ -1,19 +1,9 @@
-# SPDX-FileCopyrightText: 2022 Free Software Foundation Europe e.V. <https://fsfe.org>
-#
-# SPDX-License-Identifier: CC0-1.0
-
-name: REUSE Compliance Check
-
+name: "reuse (disabled in demo fork)"
+# Disabled in demo fork — requires SAP-internal secrets/infra.
 on:
-  push:
-    branches: ["main"]
-
+  workflow_dispatch:
 jobs:
-  test:
+  disabled:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-    - uses: actions/checkout@v6
-    - name: REUSE Compliance Check
-      uses: fsfe/reuse-action@v6.0.0
+      - run: echo "Disabled in demo fork."
