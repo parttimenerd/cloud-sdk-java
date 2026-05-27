@@ -37,11 +37,14 @@ jobs:
           distribution: sapmachine
           cache: maven
 
-      - name: Build and install test-order plugin from source
-        run: |
-          git clone --depth 1 https://github.com/parttimenerd/test-order.git /tmp/test-order
-          mvn $MVN_ARGS -f /tmp/test-order/pom.xml install -DskipTests \
-            -pl test-order-maven-plugin -am -q
+      - name: Check out test-order plugin source
+        uses: actions/checkout@v4
+        with:
+          repository: parttimenerd/test-order
+          path: /tmp/test-order
+
+      - name: Build and install test-order plugin
+        run: mvn $MVN_ARGS -f /tmp/test-order/pom.xml install -DskipTests -pl test-order-maven-plugin -am -q
 
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
