@@ -1,97 +1,59 @@
 name: "test-order: Learn Pass"
 
 # Runs the test-order learn pass for the connectivity-destination-service module
-# and uploads the resulting .test-order/ index as a workflow artifact.
-# Developers can pull this artifact with: mvn test-order:download
+# and uploads the resulting index as a workflow artifact so developers can
+# download it with: mvn test-order:download
 #
-# NOTE: This repository is a demo fork used for the SAP DCOM 2026 talk
-# "You Are Running the Wrong Tests First". See README for details.
+# NOTE: Demo fork for SAP DCOM 2026 "You Are Running the Wrong Tests First".
 
 on:
   push:
     branches: [ "main" ]
     paths:
-      - "cloudplatform/connectivity-destination-service/**"
+      - "cloudplatform/connectivity-destination-service/src/**"
   workflow_dispatch:
   schedule:
     - cron: "0 3 * * 1"   # weekly Monday 3am — keep index fresh
 
 env:
   MODULE: cloudplatform/connectivity-destination-service
-  PLUGIN_VERSION: 0.0.1-SNAPSHOT
-  MVN_ARGS: --batch-mode --no-transfer-progress
+  MVN_ARGS: --batch-mode --no-transfer-progress -DskipFormatting -Denforcer.skip
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   learn:
     name: "Learn Pass"
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: write   # needed to upload artifact
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: "21"
           distribution: sapmachine
           cache: maven
 
-      - name: Cache test-order plugin
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository/me/bechberger
-          key: test-order-plugin-${{ env.PLUGIN_VERSION }}
-
-      - name: Install test-order plugin from GitHub Packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and install test-order plugin from source
         run: |
-          mvn $MVN_ARGS dependency:resolve \
-            -Dartifact=me.bechberger:test-order-maven-plugin:${{ env.PLUGIN_VERSION }} \
-            --fail-never || true
-          # Install directly from the test-order repo releases if not in cache
-          mvn $MVN_ARGS org.apache.maven.plugins:maven-dependency-plugin:3.6.0:get \
-            -Dartifact=me.bechberger:test-order-maven-plugin:${{ env.PLUGIN_VERSION }}:jar \
-            --fail-never || true
+          git clone --depth 1 https://github.com/parttimenerd/test-order.git /tmp/test-order
+          mvn $MVN_ARGS -f /tmp/test-order/pom.xml install -DskipTests \
+            -pl test-order-maven-plugin -am -q
 
       - name: Build module (skip tests)
-        run: |
-          mvn $MVN_ARGS install -DskipTests -pl $MODULE -am \
-            -DskipFormatting -Denforcer.skip
-
-      - name: Enable test-order plugin
-        run: |
-          perl -i -pe '
-            if (/^\s+<plugins>\s*$/ && !$done) {
-              $_ .= "                <!-- test-order-plugin-start -->\n"
-                   . "                <plugin>\n"
-                   . "                        <groupId>me.bechberger</groupId>\n"
-                   . "                        <artifactId>test-order-maven-plugin</artifactId>\n"
-                   . "                        <version>${{ env.PLUGIN_VERSION }}</version>\n"
-                   . "                        <executions>\n"
-                   . "                                <execution>\n"
-                   . "                                        <goals><goal>prepare</goal></goals>\n"
-                   . "                                </execution>\n"
-                   . "                        </executions>\n"
-                   . "                </plugin>\n"
-                   . "                <!-- test-order-plugin-end -->\n";
-              $done = 1;
-            }
-          ' $MODULE/pom.xml
+        run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
 
       - name: Run learn pass
         run: |
           mvn $MVN_ARGS test -pl $MODULE \
             -Dtestorder.mode=learn \
-            -DskipFormatting -Denforcer.skip \
             -Dmaven.test.failure.ignore=true
-          mvn $MVN_ARGS test-order:aggregate -pl $MODULE
+
+      - name: Aggregate learn data
+        run: mvn $MVN_ARGS test-order:aggregate -pl $MODULE
 
       - name: Upload learn index
         uses: actions/upload-artifact@v4
