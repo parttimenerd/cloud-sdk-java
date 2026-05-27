@@ -77,30 +77,18 @@ jobs:
         run: |
           perl -i -pe '
             if (/^\s+<plugins>\s*$/ && !$done) {
-              $_ .= "                <!-- test-order-plugin-start -->
-"
-                   . "                <plugin>
-"
-                   . "                        <groupId>me.bechberger</groupId>
-"
-                   . "                        <artifactId>test-order-maven-plugin</artifactId>
-"
-                   . "                        <version>'"$PLUGIN_VERSION"'</version>
-"
-                   . "                        <executions>
-"
-                   . "                                <execution>
-"
-                   . "                                        <goals><goal>prepare</goal></goals>
-"
-                   . "                                </execution>
-"
-                   . "                        </executions>
-"
-                   . "                </plugin>
-"
-                   . "                <!-- test-order-plugin-end -->
-";
+              $_ .= "                <!-- test-order-plugin-start -->\n"
+                   . "                <plugin>\n"
+                   . "                        <groupId>me.bechberger</groupId>\n"
+                   . "                        <artifactId>test-order-maven-plugin</artifactId>\n"
+                   . "                        <version>'"$PLUGIN_VERSION"'</version>\n"
+                   . "                        <executions>\n"
+                   . "                                <execution>\n"
+                   . "                                        <goals><goal>prepare</goal></goals>\n"
+                   . "                                </execution>\n"
+                   . "                        </executions>\n"
+                   . "                </plugin>\n"
+                   . "                <!-- test-order-plugin-end -->\n";
               $done = 1;
             }
           ' $MODULE/pom.xml
