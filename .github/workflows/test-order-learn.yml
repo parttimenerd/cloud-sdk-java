@@ -120,6 +120,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-order-deps
-          path: ${{ env.MODULE }}/.test-order/
+          path: .test-order/
           retention-days: 90
           if-no-files-found: error
