@@ -71,14 +71,6 @@ jobs:
           </settings>
           XML
 
-      - name: Pre-fetch test-order runtime jars into local Maven cache
-        run: |
-          for ARTIFACT in test-order-junit test-order-agent test-order-core; do
-            mvn $MVN_ARGS dependency:get \
-              -Dartifact=me.bechberger:${ARTIFACT}:${PLUGIN_VERSION} \
-              -DremoteRepositories=ossrh-snapshots::default::${OSSRH}
-          done
-
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
 
@@ -106,6 +98,7 @@ jobs:
         run: |
           mvn $MVN_ARGS test -pl $MODULE \
             -Dtestorder.mode=learn \
+            -DforkCount=1 -DreuseForks=true \
             -Dmaven.test.failure.ignore=true
 
       - name: Aggregate learn data
