@@ -27,7 +27,7 @@ permissions:
 
 jobs:
 
-  # ── Tier 1: build + download index + run affected tests ─────────────────────
+  # ── Tier 1: download index (or learn locally) + run affected tests ───────────
   tier-1:
     name: "Tier 1 — Affected Tests"
     runs-on: ubuntu-latest
@@ -96,13 +96,18 @@ jobs:
       - name: Build module (skip tests)
         run: mvn $MVN_ARGS install -DskipTests -pl $MODULE -am
 
-      - name: Download learn index
+      - name: Download learn index (or fall back to local learn pass)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn $MVN_ARGS test-order:download -pl $MODULE
+        run: |
+          mvn $MVN_ARGS test-order:download -pl $MODULE \
+            -Dtestorder.download.fallbackToLearn=true
 
       - name: Run tier 1 (affected tests) — writes tier 2+3 files
         run: mvn $MVN_ARGS test-order:tiered-select test -pl $MODULE
+
+      - name: Aggregate learn data (no-op if index was downloaded)
+        run: mvn $MVN_ARGS test-order:aggregate -pl $MODULE
 
       - name: Upload tier files for downstream jobs
         uses: actions/upload-artifact@v4
