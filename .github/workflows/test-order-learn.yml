@@ -7,7 +7,7 @@ on:
       - '.github/workflows/test-order-learn.yml'
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * 0'
+    - cron: '0 3 * * *'
 
 jobs:
   learn:
@@ -57,21 +57,31 @@ jobs:
       - name: Build module (skip tests)
         run: mvn install -DskipTests -pl cloudplatform/connectivity-destination-service -am -q
 
-      - name: Run learn pass
+      - name: Run learn pass + aggregate (single invocation persists merged index)
         run: |
-          mvn test \
+          mvn test-order:learn test test-order:aggregate \
             -pl cloudplatform/connectivity-destination-service \
-            -Dtestorder.mode=learn \
             -Dmaven.test.failure.ignore=true \
             -q
 
-      - name: Aggregate learn data
-        run: mvn test-order:aggregate -pl cloudplatform/connectivity-destination-service -q
+      - name: Verify index is populated
+        run: |
+          INDEX=cloudplatform/connectivity-destination-service/.test-order/test-dependencies.lz4
+          if [[ ! -f "$INDEX" ]]; then
+            echo "::error::Index file not found at $INDEX"
+            exit 1
+          fi
+          SIZE=$(stat -c%s "$INDEX")
+          echo "Index size: $SIZE bytes"
+          if [[ "$SIZE" -lt 5000 ]]; then
+            echo "::warning::Index is unexpectedly small ($SIZE bytes) — fallback may not have been merged"
+            ls -la cloudplatform/connectivity-destination-service/.test-order/
+          fi
 
       - name: Upload learn index
         uses: actions/upload-artifact@v4
         with:
           name: test-order-deps
-          path: .test-order/
+          path: cloudplatform/connectivity-destination-service/.test-order/
           include-hidden-files: true
           retention-days: 90
